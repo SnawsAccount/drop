@@ -96,6 +96,7 @@ local RespawnButton = Gui.DeathScreen.DeathScreenHolder.Frame.RespawnButtonFrame
 local Tutorial = Gui:WaitForChild("Slideshow"):WaitForChild("SlideshowHolder")
 local TutorialCloseButton = Tutorial:WaitForChild("SlideshowCloseButton")
 
+-- Gui.Items.ItemsHolder.ItemsScrollingFrame["{item id}"] :: ImageButton
 local Inventory = Gui.Items.ItemsHolder.ItemsScrollingFrame :: Frame
 
 local EquipItemButton = Gui.ItemInfoGui.ItemInfoHolder.PromptButtons.EquipItemButton :: TextButton
@@ -105,6 +106,19 @@ local RepairItemButton = Gui.ItemInfoGui.ItemInfoHolder.PromptButtons.RepairItem
 local InteractionFolder = Gui.ProximityPrompts :: Folder
 
 local NotificationFolder = Gui.Notifications.Frame :: Frame
+
+-- game:GetService("Workspace").Map.Props.ATM.Part.ProximityPrompt
+
+-- Numbers change
+--[[
+local ATMActionPageOptions = Gui["9875"]["8791"]["2203"].Options
+local ATMGui = Gui["9875"]["8791"]
+
+local ATMCloseButton = Gui["9875"]["8791"].ATMCloseButton :: ImageButton
+local ATMWithdrawButton = Gui["9875"]["8791"]["7882"].Options.ATMWithdrawButton :: TextButton
+local ATMAmount = Gui["9875"]["8791"]["2203"].Options.Frame["9053"] :: TextBox
+local ATMConfirmButton = Gui["9875"]["8791"]["2203"].Options["2180"] :: TextButton
+]]
 
 local ATMActionPageOptions = Gui:FindFirstChild("ATMActionAmount", true).Parent
 local ATMGui = ATMActionPageOptions.Parent.Parent
@@ -120,6 +134,31 @@ for _, v in pairs(ATMActionPageOptions:GetChildren()) do
 	end
 end
 
+--[[ local bikes = {
+	"BMX",
+	"BMX2",
+	"DirtBike",
+	"EScooter",
+}
+local cars = {
+	"ATV",
+	"Civic",
+	"CivicX",
+	"Cullivane",
+	"F150",
+	"Forklift",
+	"G-Cruzer",
+	"Go Kart",
+	"Golf Cart",
+	"Humvee",
+	"Mobility Scooter",
+	"Mower",
+	"SRT",
+	"Toilet Car",
+	"Trackhawk",
+	"TrackhawkX",
+	"Urus",
+} ]]
 local WalkSpeed = 18
 local RunSpeed = 34
 local VehicleSpeeds = {
@@ -151,19 +190,12 @@ local function keypress(key: Enum.KeyCode, holdTime: number?)
 	task.wait()
 end
 
-local function clickOnUi(element: GuiButton)
-    task.spawn(function()
-        setthreadidentity(2)
-        -- Try firing Activated event (works for both PC and mobile)
-        if element:IsA("GuiButton") and element.Activated then
-            firesignal(element.Activated)
-        end
-        -- Fallback to MouseButton1Click for PC compatibility
-        if element:IsA("TextButton") or element:IsA("ImageButton") then
-            firesignal(element.MouseButton1Click, 0, 0)
-        end
-    end)
-    task.wait(0.1) -- Small delay to allow event processing
+local function clickOnUi(element: TextButton)
+	task.spawn(function()
+		setthreadidentity(2)
+		firesignal(element.MouseButton1Click, 0, 0)
+	end)
+	task.wait()
 end
 
 local function isCombatLogging()
@@ -187,6 +219,7 @@ local function closest(parts: { BasePart | Model }): BasePart
 	local closest_distance = math.huge
 	for _, part in pairs(parts) do
 		local position = part:IsA("BasePart") and part.Position or part:GetPivot().Position
+
 		local distance = (position - HRP().Position).magnitude
 		if distance < closest_distance then
 			closest = part
@@ -222,11 +255,30 @@ local function notificationDetected(): boolean
 	return false
 end
 
+-- TODO: make this only check parts that the character/vehicle are touching to avoid billboards messing it up
 local function groundPos(pos: Vector3, ignoreList: Instance | { Instance }): Vector3?
+	--[[ local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	raycastParams:AddToFilter(ignoreList)
+    
+	local maxDistance = 100
+	local rayOrigin = pos + Vector3.new(0, maxDistance, 0)
+	local rayDirection = Vector3.new(0, maxDistance * -2, 0)
+    
+	local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    
+	if result then
+		local hitPos = result.Position
+		return Vector3.new(pos.X, hitPos.Y, pos.Z)
+	end ]]
+
 	return pos -- Fallback
 end
 
 local vehicle = nil
+--[=[
+    Gets the vehicle that the player is in.
+]=]
 local function getVehicle()
 	local vehiclesFolder = workspace:FindFirstChild("Vehicles") :: Folder
 	local spawnedVehicles = vehiclesFolder:GetChildren() :: { Model }
@@ -237,16 +289,21 @@ local function getVehicle()
 	end
 	return nil
 end
-
+--[=[
+    Tries to spawn a vehicle and set `vehicle`.
+]=]
 local function spawnVehicle()
 	if vehicle then
 		return
 	end
+
 	if getVehicle() then
 		vehicle = getVehicle()
 		return
 	end
+
 	notify("Trying to spawn vehicle")
+
 	local vehicleItems = filter(Inventory:GetChildren(), function(v)
 		if not v:IsA("ImageButton") then
 			return false
@@ -258,43 +315,55 @@ local function spawnVehicle()
 		local name = itemNameLabel.Text
 		return VehicleSpeeds[name] ~= nil
 	end)
+
 	if #vehicleItems == 0 then
 		notify("No vehicles found in inventory")
 		return
 	end
+
 	local vehicleItem = vehicleItems[1]
 	notify("Spawning " .. vehicleItem.ItemName.Text)
 	clickOnUi(vehicleItem)
 	clickOnUi(EquipItemButton)
+
 	task.wait(1)
+
 	vehicle = getVehicle()
+
 	if vehicle then
 		return
 	end
+
 	keypress(Enum.KeyCode.E, 2)
+
 	vehicle = getVehicle()
+
 	if vehicle then
 		return
 	end
+
 	notify("Couldn't find vehicle after spawning.")
 	error("Couldn't find vehicle after spawning.")
 end
-
 local function leaveVehicle()
+	-- If the player isn't in a vehicle, do nothing.
 	if not getVehicle() then
 		return
 	end
+
 	notify("Leaving vehicle")
 	keypress(Enum.KeyCode.E, 1)
 end
-
 local function enterVehicle()
+	-- If there's no vehicle or the player is already in a vehicle, do nothing.
 	if not vehicle or getVehicle() then
 		return
 	end
+
 	notify("Entering vehicle")
 	vehicle:PivotTo(Character():GetPivot())
 	keypress(Enum.KeyCode.E, 1)
+
 	if not getVehicle() then
 		notify("Couldn't find vehicle after entering.")
 	end
@@ -302,20 +371,25 @@ end
 
 local function moveTo(target: BasePart | Model | Vector3 | CFrame, epsilon: number?, checkATM: boolean?)
 	enterVehicle()
+
 	local usingVehicle = vehicle and true or false
 	local waypointSpacing = usingVehicle and 3 or 3
-	local speed = usingVehicle and VehicleSpeeds[vehicle.Name] or RunSpeed
+	local speed = usingVehicle and VehicleSpeeds[vehicle.Name] or RunSpeed -- Studs per second. 34 is the default
 	local timePerWaypoint = waypointSpacing / speed
 	local yOffset = 4
+
+	-- Destroy old waypoint markers.
 	for _, part in pairs(workspace:GetChildren()) do
 		if part:IsA("Part") and (part.Name == "Waypoint") then
 			part:Destroy()
 		end
 	end
+
 	epsilon = epsilon == nil and 7 or epsilon
 	local position
 	local temp = {}
 	local targetModel = nil
+
 	if typeof(target) == "Vector3" then
 		position = target
 	elseif typeof(target) == "CFrame" then
@@ -323,6 +397,8 @@ local function moveTo(target: BasePart | Model | Vector3 | CFrame, epsilon: numb
 	else
 		position = target:IsA("BasePart") and target.Position or target:GetPivot().Position
 		targetModel = target
+
+		-- Disable collision for better pathing.
 		for _, v in pairs((target :: BasePart | Model):GetChildren()) do
 			if v:IsA("BasePart") and v.CanCollide then
 				table.insert(temp, v)
@@ -338,18 +414,24 @@ local function moveTo(target: BasePart | Model | Vector3 | CFrame, epsilon: numb
 			end
 		end
 	end
+
 	local path = PathfindingService:CreatePath({
 		AgentCanJump = false,
 		AgentCanClimb = true,
 		WaypointSpacing = waypointSpacing,
 	})
+
 	local success, errorMessage = pcall(function()
 		path:ComputeAsync(HRP().Position, position)
 	end)
+
+	-- Add back collision.
 	for _, v in pairs(temp) do
 		v.CanCollide = true
 	end
+
 	if success and path.Status == Enum.PathStatus.Success then
+		-- Create waypoint markers.
 		for _, waypoint in ipairs(path:GetWaypoints()) do
 			local p = Instance.new("Part", workspace)
 			p.Position = waypoint.Position
@@ -359,59 +441,78 @@ local function moveTo(target: BasePart | Model | Vector3 | CFrame, epsilon: numb
 			p.Color = Color3.new(1, 0, 0)
 			p.Size = Vector3.new(0.2, 0.2, 0.2)
 		end
+
 		local function gotoWaypoint(waypoint: PathWaypoint)
 			if not getgenv().Running then
 				error("Aborted")
 			end
+
 			if (position - HRP().Position).magnitude <= epsilon then
 				return 2 -- Reached
 			end
+
+			-- Check if ATM is still working while moving
 			if checkATM and targetModel and not isAtmWorking(targetModel) then
 				notify("ATM stopped working, finding another one")
 				return 1 -- Failed
 			end
+
 			if usingVehicle then
 				local cframe = CFrame.lookAt(
 					vehicle:GetPivot().Position,
 					waypoint.Position * Vector3.new(1, 0, 1) + vehicle:GetPivot().Position * Vector3.new(0, 1, 0)
-				)
-				cframe = cframe - cframe.Position
-				cframe = cframe + groundPos(waypoint.Position, { Character(), vehicle })
-				cframe = cframe + Vector3.new(0, yOffset, 0)
+				) -- Look at the waypoint.
+				cframe = cframe - cframe.Position -- Reset the position.
+				cframe = cframe + groundPos(waypoint.Position, { Character(), vehicle }) -- Move to the waypoint.
+				cframe = cframe + Vector3.new(0, yOffset, 0) -- Add vertical offset
+
 				vehicle:PivotTo(cframe)
+
 				task.wait(timePerWaypoint)
 			else
 				VIM:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+
 				local cframe = CFrame.lookAt(
 					Character():GetPivot().Position,
 					waypoint.Position * Vector3.new(1, 0, 1) + Character():GetPivot().Position * Vector3.new(0, 1, 0)
-				)
-				cframe = cframe - cframe.Position
-				cframe = cframe + groundPos(waypoint.Position, { Character() })
-				cframe = cframe + Vector3.new(0, yOffset, 0)
+				) -- Look at the waypoint.
+				cframe = cframe - cframe.Position -- Reset the position.
+				cframe = cframe + groundPos(waypoint.Position, { Character() }) -- Move to the waypoint.
+				cframe = cframe + Vector3.new(0, yOffset, 0) -- Add vertical offset
+
 				Character():MoveTo(cframe.Position)
+
 				task.wait(timePerWaypoint)
+
+				--[[ Humanoid():MoveTo(waypoint.Position)
+				Humanoid().MoveToFinished:Wait() ]]
 			end
 			return 0 -- Continue
 		end
+
 		local waypoints = path:GetWaypoints()
 		local i = 1
 		while true do
 			if i > #waypoints then
 				return true -- Reached
 			end
+
 			if notificationDetected() then
 				task.wait(1)
 				return moveTo(target, epsilon, checkATM)
 			end
+
 			local waypoint = waypoints[i]
 			local result = gotoWaypoint(waypoint)
+
 			if result == 1 then
 				return false -- Failed
 			end
+
 			if result == 2 then
 				return true -- Reached
 			end
+
 			i += 1
 		end
 		if not usingVehicle then
@@ -449,102 +550,49 @@ local function resetCharacter()
 end
 
 --- Setup ---
-local function waitForGuiElement(path: string, timeout: number?): Instance?
-    timeout = timeout or 10
-    local start = tick()
-    while tick() - start < timeout do
-        local element = Gui:FindFirstChild(path, true)
-        if element then
-            return element
-        end
-        task.wait(0.1)
-    end
-    return nil
+-- Wait for loading screen
+print("Waiting for loading screen")
+while Gui:FindFirstChild("LoadingScreen", true) do
+	task.wait()
 end
 
-print("Waiting for loading screen to disappear")
-while waitForGuiElement("LoadingScreen", 30) do
-    task.wait(0.1)
-end
-print("Loading screen gone")
-
-local splashScreen = waitForGuiElement("SplashScreenGui", 10)
-if splashScreen and splashScreen:IsA("ScreenGui") and splashScreen.Enabled then
-    print("Entering game")
-    local playButton = splashScreen:FindFirstChild("Frame"):FindFirstChild("PlayButton")
-    if playButton and playButton:IsA("GuiButton") then
-        for _ = 1, 3 do
-            clickOnUi(playButton)
-            task.wait(2)
-            if not waitForGuiElement("SplashScreenGui", 2) then
-                break
-            end
-        end
-    else
-        print("PlayButton not found")
-    end
+-- Enter game
+if Gui:FindFirstChild("SplashScreenGui") then
+	print("Entering game")
+	clickOnUi(Gui.SplashScreenGui.Frame.PlayButton)
+	task.wait(5)
 end
 
-if Gui.CharacterCreator and Gui.CharacterCreator:IsA("ScreenGui") and Gui.CharacterCreator.Enabled then
-    print("Skipping character creator")
-    local skipButton = waitForGuiElement("AvatarMenuSkipButton", 5)
-    if skipButton and skipButton:IsA("GuiButton") then
-        for _ = 1, 3 do
-            clickOnUi(skipButton)
-            task.wait(2)
-            if not Gui.CharacterCreator.Enabled then
-                break
-            end
-        end
-    else
-        print("AvatarMenuSkipButton not found")
-    end
+if Gui.CharacterCreator.Enabled then
+	print("Skipping character creator")
+	clickOnUi(Gui.CharacterCreator.MenuFrame.AvatarMenuSkipButton)
+	task.wait(5)
 end
 
-if Tutorial and Tutorial:IsA("GuiObject") and Tutorial.Visible then
-    print("Skipping tutorial")
-    local closeButton = Tutorial:FindFirstChild("SlideshowCloseButton")
-    if closeButton and closeButton:IsA("GuiButton") then
-        for _ = 1, 3 do
-            clickOnUi(closeButton)
-            task.wait(2)
-            if not Tutorial.Visible then
-                break
-            end
-        end
-    else
-        print("SlideshowCloseButton not found")
-    end
+if Tutorial.Visible then
+	print("Skipping tutorial")
+	clickOnUi(TutorialCloseButton)
 end
 
+-- Make sure to skip stuff if for some reason it didn't work
 task.spawn(function()
-    while task.wait(1) do
-        local splash = waitForGuiElement("SplashScreenGui", 2)
-        if splash and splash:IsA("ScreenGui") and splash.Enabled then
-            print("Re-entering game")
-            local playButton = splash:FindFirstChild("Frame"):FindFirstChild("PlayButton")
-            if playButton and playButton:IsA("GuiButton") then
-                clickOnUi(playButton)
-            end
-        end
-        if Gui.CharacterCreator and Gui.CharacterCreator:IsA("ScreenGui") and Gui.CharacterCreator.Enabled then
-            print("Re-skipping character creator")
-            local skipButton = waitForGuiElement("AvatarMenuSkipButton", 2)
-            if skipButton and skipButton:IsA("GuiButton") then
-                clickOnUi(skipButton)
-            end
-        end
-        if Tutorial and Tutorial:IsA("GuiObject") and Tutorial.Visible then
-            print("Re-skipping tutorial")
-            local closeButton = Tutorial:FindFirstChild("SlideshowCloseButton")
-            if closeButton and closeButton:IsA("GuiButton") then
-                clickOnUi(closeButton)
-            end
-        end
-    end
+	while task.wait() do
+		if Gui:FindFirstChild("SplashScreenGui") then
+			print("Entering game")
+			clickOnUi(Gui.SplashScreenGui.Frame.PlayButton)
+		end
+		if Gui.CharacterCreator.Enabled then
+			print("Skipping character creator")
+			clickOnUi(Gui.CharacterCreator.MenuFrame.AvatarMenuSkipButton)
+		end
+		if Tutorial.Visible then
+			print("Skipping tutorial")
+			clickOnUi(TutorialCloseButton)
+		end
+	end
 end)
 
---- Main Loop ---
+-- Disable door collision
 print("Disabling door collision")
 for _, v in pairs(workspace:GetDescendants()) do
 	if v:IsA("Model") and v.Name == "DoorSystem" then
@@ -556,8 +604,10 @@ for _, v in pairs(workspace:GetDescendants()) do
 	end
 end
 
+-- Trying to spawn vehicle
 spawnVehicle()
 
+--- Main Loop ---
 if bank() > getgenv().KeepAmount then
 	notify("Moving to ATM")
 	while task.wait(0.1) do
@@ -582,6 +632,7 @@ if bank() > getgenv().KeepAmount then
 			break
 		end
 	end
+
 	notify("Withdrawing 1")
 	withdraw(bank() - getgenv().KeepAmount)
 	task.wait(0.1)
@@ -593,11 +644,12 @@ if bank() > getgenv().KeepAmount then
 	task.wait(0.1)
 end
 notify("Moving to target location")
-moveTo(getgenv().TargetLocation, 10)
+moveTo(getgenv().TargetLocation, 10) -- Move with vehicle
 leaveVehicle()
 vehicle = nil
-moveTo(getgenv().TargetLocation, 2)
+moveTo(getgenv().TargetLocation, 2) -- Move closer without vehicle
 
+-- Wait until combat logging
 while not isCombatLogging() do
 	task.wait()
 end
