@@ -293,7 +293,7 @@ end
     Tries to spawn a vehicle and set `vehicle`.
 ]=]
 local function spawnVehicle()
-	if vehicle then
+	--[=[if vehicle then
 		return
 	end
 
@@ -343,7 +343,7 @@ local function spawnVehicle()
 	end
 
 	notify("Couldn't find vehicle after spawning.")
-	error("Couldn't find vehicle after spawning.")
+	error("Couldn't find vehicle after spawning.")]=]
 end
 local function leaveVehicle()
 	-- If the player isn't in a vehicle, do nothing.
